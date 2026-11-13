@@ -58,6 +58,7 @@ const AzureView = (() => {
           ${r.errors.length ? '<div class="card-body">No BOM issued until the blocking constraints are resolved.</div>' :
             `<div class="scroll"><table><thead><tr><th class="left">Resource</th><th class="left">Quantity / status</th><th class="left">Scope and requirements</th></tr></thead><tbody>${r.bom.map(b => `<tr><td class="left">${escape(b.resource)}</td><td class="left">${escape(b.quantity)}</td><td class="left">${escape(b.detail)}</td></tr>`).join("")}</tbody></table></div>`}</div>
         <div class="card"><div class="card-header"><h2>Limitations and deployment validation</h2></div><div class="card-body"><ul class="validation-list">${r.warnings.map(w => `<li>${escape(w)}</li>`).join("")}</ul></div></div>`;
+      return r;
     } catch (error) {
       document.getElementById("azure-status").textContent = `Azure estimate unavailable: ${error.message}`;
       document.getElementById("azure-status").className = "strip warn";

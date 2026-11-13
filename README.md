@@ -1,6 +1,6 @@
 # EIC sizing calculator
 
-Open `index.html` in a browser, or serve this directory with any static HTTP server. No framework, build, account, deployment or cloud provisioning is required. Keep `azure-sizing.js` and `azure-view.js` beside the HTML file. SAP fonts are fetched externally when available; system fonts are the fallback.
+Open `index.html` in a browser, or serve this directory with any static HTTP server. No framework, build, account, deployment or cloud provisioning is required. Keep `azure-sizing.js`, `azure-view.js` and `terraform-export.js` beside the HTML file. SAP fonts are fetched externally when available; system fonts are the fallback.
 
 Enter synchronous / asynchronous throughput, then open **Azure Mapping**. Select a planning region, node SKU, Solace tier and availability model. Edit the planning assumptions to match your deployment. The result shows aggregate capacity constraints, individual-pod fit, normal/survivor allocation and an **unpriced** resource bill of materials. Invalid assumptions block estimates; blank throughput means zero. Negative throughput retains workbook behavior but blocks Azure sizing.
 
@@ -28,6 +28,18 @@ Controls persist under the original browser storage key using schema version 2. 
 
 **Reset inputs** resets both workbook inputs and the Azure scenario. Persistence is browser/origin-specific; use JSON exports for transfer.
 
+## Deploy card / Terraform export
+
+Below the Azure methodology, select **Preview variables.tf**, review the generated file and compatibility warnings, then **Confirm and download variables.tf**. Cancel or Escape closes the dialog without downloading. The downloaded bytes are exactly the preview; changing calculator inputs invalidates an open preview. Invalid/blocked Azure estimates cannot be exported. This is a local file export, **not an Azure deployment**.
+
+The exporter follows the names, types and validations of [the accelerator PaaS variable contract](https://github.com/Azure/sap-edge-integration-cell-on-azure-accelerator/blob/cc90ea65cdcd3cff4006ef0611f1bb2ba1a95a7e/production-ready/azure-paas/variables.tf), pinned to commit `cc90ea65cdcd3cff4006ef0611f1bb2ba1a95a7e`. The derived variable declarations include the upstream Microsoft MIT notice in every download. No runtime network fetch is needed.
+
+Defaults map the chosen region and HA intent to `location` / `postgres_ha_enabled`; `postgres_version` is set to **15** per the SAP snapshot, rather than upstream's 16. PostgreSQL/cache SKU, storage, capacity and zone settings remain **required** because the calculator has not sized or verified them. Supply resource names, subnet IDs and conditional DNS/Key Vault IDs separately. Retained defaults (such as backup retention) are upstream examples, not sizing recommendations.
+
+**Compatibility limit:** the linked PaaS module has no AKS node, maxPods, Solace, PVC or replica variables. The complete current mapping, assumptions and sources are therefore included as **reference comments**, not invented executable settings. Its `main.tf` actually provisions `azurerm_redis_cache` (Azure Cache for Redis), despite its Managed Redis wording; exporting variables cannot migrate it to the mapping's preferred Azure Managed Redis. Review/adapt the accelerator before applying.
+
+Replace `variables.tf` inside the accelerator's `production-ready/azure-paas` directory. Do not use this declaration file as `terraform.tfvars`. Existing `.tfvars`, `TF_VAR_*` environment values and CLI arguments override variable defaults; remove conflicting sample overrides (notably PostgreSQL 16). Actual deployment and validation of the accelerator are outside the export feature.
+
 ## Checks
 
-Run `node --test calculator.test.cjs` (Node.js 18+). No packages are required. Tests cover workbook quirks/rounding, resource floors, HA/broker accounting, failure survivors, bottlenecks, individual pod fit, invalid/huge values, state compatibility and non-mutation.
+Run `node --test calculator.test.cjs` (Node.js 18+). No packages are required. Tests cover workbook quirks/rounding, resource floors, HA/broker accounting, failure survivors, bottlenecks, individual pod fit, invalid/huge values, state compatibility, Terraform variable schema/defaults/reference-only settings and non-mutation.

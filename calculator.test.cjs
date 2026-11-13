@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const A = require("./azure-sizing.js");
+const TF = require("./terraform-export.js");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 const engine = html.match(/<script id="eic-calc">([\s\S]*?)<\/script>/)[1];
 const context = { module: { exports: {} } };
@@ -192,4 +193,76 @@ test("mapping and export never mutate workbook results or throughput inputs", ()
   A.compute(results, { mode: "ha", tier: "1K", failure: "zone" }, inputs);
   A.exportDocument(inputs, results, {});
   assert.equal(JSON.stringify({ inputs, results }), before);
+});
+
+const declarations = content => Object.fromEntries([...content.matchAll(/^variable "([^"]+)" \{\n([\s\S]*?)^\}/gm)].map(m => [m[1], m[2]]));
+test("Terraform export preserves the pinned PaaS variable contract with current mapping defaults", () => {
+  const inputs = zero();
+  const output = TF.generate(E.compute(inputs), { region: "eastus" }, inputs);
+  const blocks = declarations(output.content);
+  const expected = {
+    resource_group_name: "string", location: "string", tags: "map(string)", create_private_dns_zones: "bool",
+    vnet_id: "string", existing_postgres_private_dns_zone_id: "string", existing_redis_private_dns_zone_id: "string",
+    postgres_server_name: "string", postgres_database_name: "string", postgres_admin_username: "string",
+    postgres_sku_name: "string", postgres_storage_mb: "number", postgres_backup_retention_days: "number",
+    postgres_geo_redundant_backup_enabled: "bool", postgres_version: "string", postgres_zone: "string",
+    postgres_standby_zone: "string", postgres_ha_enabled: "bool", postgres_delegated_subnet_id: "string",
+    redis_name: "string", redis_sku_name: "string", redis_family: "string", redis_capacity: "number",
+    redis_minimum_tls_version: "string", redis_private_endpoint_subnet_id: "string", redis_zones: "list(string)",
+    store_secrets_in_key_vault: "bool", key_vault_id: "string"
+  };
+  assert.deepEqual(Object.keys(blocks), Object.keys(expected));
+  for (const [name, type] of Object.entries(expected)) assert.equal(blocks[name].match(/type\s*=\s*(.+)/)[1], type);
+  assert.match(blocks.location, /default\s*=\s*"eastus"/);
+  assert.match(blocks.postgres_version, /default\s*=\s*"15"/);
+  assert.match(blocks.postgres_ha_enabled, /default\s*=\s*false/);
+  assert.match(blocks.postgres_backup_retention_days, /var.postgres_backup_retention_days >= 7 && var.postgres_backup_retention_days <= 35/);
+  assert.match(blocks.redis_sku_name, /contains\(\["Basic", "Standard", "Premium"\], var.redis_sku_name\)/);
+  assert.equal(output.filename, "variables.tf");
+  assert.ok(output.content.includes(TF.SOURCE.url));
+  assert.ok(output.content.includes("Copyright (c) Microsoft Corporation."));
+});
+
+test("Terraform export records full HA sizing as comments without inventing AKS or managed-service sizing variables", () => {
+  const inputs = zero();
+  inputs.sync.simple[0] = 100;
+  const scenario = { mode: "ha", failure: "zone", tier: "1K", sku: "Standard_E8s_v6", region: "swedencentral" };
+  const workbook = E.compute(inputs);
+  const output = TF.generate(workbook, scenario, inputs);
+  const blocks = declarations(output.content);
+  assert.match(blocks.postgres_ha_enabled, /default\s*=\s*true/);
+  for (const name of ["postgres_sku_name", "postgres_storage_mb", "redis_sku_name", "redis_family", "redis_capacity", "postgres_zone", "postgres_standby_zone", "redis_zones"]) {
+    assert.ok(output.required.includes(name));
+    assert.doesNotMatch(blocks[name], /^\s*default\s*=/m);
+  }
+  const comments = output.content.split("\n").filter(l => l.startsWith("#")).map(l => l.slice(1).trimStart()).join("\n");
+  const snapshot = JSON.parse(comments.split("Current Azure mapping snapshot - REFERENCE ONLY, NOT Terraform resource settings:")[1].split("Upstream license notice:")[0].trim());
+  assert.deepEqual(snapshot.azure, A.compute(workbook, scenario, inputs));
+  assert.equal(snapshot.azure.broker.disk, 703);
+  assert.equal(snapshot.sources.prerequisites.version, 96);
+  assert.equal(blocks.aks_node_count, undefined);
+  assert.equal(blocks.solace_tier, undefined);
+  assert.ok(output.warnings.some(w => w.includes("NOT Azure Managed Redis")));
+  assert.ok(output.warnings.some(w => w.includes("override its defaults")));
+});
+
+test("Terraform exports reject invalid or blocked sizing rather than emitting deployable-looking defaults", () => {
+  const inputs = zero();
+  for (const scenario of [{ headroomPercent: null }, { workerPodCpu: 100 }, { region: '${file("secret")}' }]) {
+    assert.throws(() => TF.generate(E.compute(inputs), scenario, inputs));
+  }
+  inputs.async[0] = -1;
+  assert.throws(() => TF.generate(E.compute(inputs), {}, inputs), /non-negative/);
+  inputs.async[0] = 1e9;
+  assert.throws(() => TF.generate(E.compute(inputs), {}, inputs), /blocked Azure mapping/);
+});
+
+test("Terraform preview generation is deterministic and does not change calculator state", () => {
+  const inputs = zero();
+  const workbook = E.compute(inputs);
+  const scenario = A.scenario();
+  const before = JSON.stringify({ inputs, workbook, scenario });
+  const first = TF.generate(workbook, scenario, inputs);
+  assert.equal(TF.generate(workbook, scenario, inputs).content, first.content);
+  assert.equal(JSON.stringify({ inputs, workbook, scenario }), before);
 });

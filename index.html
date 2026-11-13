@@ -53,7 +53,8 @@ body { font-family: "72", "72full", Arial, Helvetica, sans-serif; font-size: .87
 .btn.transparent:hover { background: var(--sapButton_Lite_Hover_Background); }
 .btn.emphasized { background: var(--sapButton_Emphasized_Background); border-color: var(--sapButton_Emphasized_Background); color: #fff; font-weight: 700; }
 .btn.emphasized:hover { background: var(--sapButton_Emphasized_Hover_Background); }
-.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: .125rem solid var(--sapBrandColor); outline-offset: .0625rem; }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, textarea:focus-visible { outline: .125rem solid var(--sapBrandColor); outline-offset: .0625rem; }
+.btn:disabled { cursor: not-allowed; opacity: .55; }
 
 /* Dynamic page header */
 .page-header { background: #fff; padding: 1rem 2rem 0; box-shadow: 0 .125rem .25rem rgba(34,53,72,.08); }
@@ -126,6 +127,12 @@ summary { cursor: pointer; font-weight: 700; padding: .5rem 0; }
 .validation-list li { margin-bottom: .5rem; }
 #app-error { margin: 1rem 2rem 0; }
 #app-error[hidden] { display: none; }
+.deploy-dialog { width: min(64rem, calc(100% - 1.5rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; border: 1px solid var(--sapList_BorderColor); border-radius: .75rem; color: var(--sapTextColor); background: #fff; box-shadow: var(--sapContent_Shadow0); }
+.deploy-dialog::backdrop { background: rgba(29,45,62,.55); }
+.deploy-dialog h2 { margin: 0 0 .75rem; font-size: 1.25rem; }
+.deploy-dialog textarea { display: block; width: 100%; height: 22rem; max-height: 45dvh; padding: .75rem; margin-top: .5rem; resize: vertical; font: .8125rem/1.5 Consolas, monospace; color: var(--sapTextColor); background: #f7f8f9; border: 1px solid var(--sapField_BorderColor); border-radius: .25rem; white-space: pre; }
+.deploy-dialog .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
+#deploy-notes { max-height: 10rem; overflow-y: auto; margin: .5rem 0 1rem; }
 @media (max-width: 650px) {
   main { padding: 1rem .75rem; }
   .page-header { padding: 1rem .75rem 0; }
@@ -294,8 +301,29 @@ summary { cursor: pointer; font-weight: 700; padding: .5rem 0; }
         <p>Microsoft Learn <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv6-series" target="_blank" rel="noopener">Dsv6</a> / <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/memory-optimized/esv6-series" target="_blank" rel="noopener">Esv6</a> / <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv5-series" target="_blank" rel="noopener">Dsv5</a> specifications checked 2026-11-13. These series have no local temp disk; ephemeral OS compatibility must be checked against the exact AKS SKU/image. Source snapshots are dated facts, not a guarantee of current support. SAP links may require authorization; restricted documents are not distributed with this app.</p>
       </div>
     </div>
+    <div class="card" id="deploy-card">
+      <div class="card-header"><h2>Deploy</h2><span class="hint">Review and download Terraform configuration; no resources are created</span></div>
+      <div class="card-body">
+        <p>Export the current Azure mapping using the accelerator's <a href="https://github.com/Azure/sap-edge-integration-cell-on-azure-accelerator/blob/main/production-ready/azure-paas/variables.tf" target="_blank" rel="noopener">PaaS variables.tf schema</a>. Review the generated file in a dialog before confirming the local download.</p>
+        <p>This module configures only PostgreSQL and Redis. AKS and Solace results are included as reference comments, not deployment variables. Unsized managed-service settings remain required. The pinned module uses Azure Cache for Redis rather than the mapping's preferred Azure Managed Redis.</p>
+        <p id="deploy-availability" role="status"></p>
+        <button class="btn emphasized" id="btnDeployExport" aria-haspopup="dialog" aria-controls="deploy-dialog" disabled>Preview variables.tf</button>
+      </div>
+    </div>
   </section>
 </main>
+<dialog class="deploy-dialog" id="deploy-dialog" aria-labelledby="deploy-title" aria-describedby="deploy-description">
+  <h2 id="deploy-title">Review Terraform export</h2>
+  <p id="deploy-description">Review variables.tf and its limitations before downloading. Nothing is downloaded until you confirm; no Azure deployment is performed.</p>
+  <ul id="deploy-notes" class="validation-list"></ul>
+  <label for="deploy-preview"><b>variables.tf preview (read-only)</b></label>
+  <textarea id="deploy-preview" readonly spellcheck="false" wrap="off"></textarea>
+  <p id="deploy-error" role="alert" hidden></p>
+  <div class="dialog-actions">
+    <button class="btn" id="btnDeployCancel" autofocus>Cancel</button>
+    <button class="btn emphasized" id="btnDeployDownload">Confirm and download variables.tf</button>
+  </div>
+</dialog>
 <div class="footer">Formulas replicate EIC_Sizing_Calculator_Tool_v3+1.xlsx. Hover a calculated value to see its source Excel formula. Inputs are saved in this browser.</div>
 
 <script id="eic-calc">
@@ -381,12 +409,15 @@ if (typeof module !== "undefined") module.exports = EIC;
 </script>
 
 <script src="azure-sizing.js"></script>
-<script src="azure-view.js"></script>
+<script src="azure-view.js?v=2"></script>
+<script src="terraform-export.js"></script>
 <script>
 (() => {
   const STORAGE_KEY = "eic-sizing-calculator-v3+1";
   const invalidThroughput = new Set();
   let { inputs, azure: azureScenario } = load();
+  let pendingTerraform = null;
+  const deployDialog = document.getElementById("deploy-dialog");
 
   function notify(message) {
     const node = document.getElementById("app-error");
@@ -448,6 +479,8 @@ if (typeof module !== "undefined") module.exports = EIC;
   }
 
   function render() {
+    if (deployDialog.open) deployDialog.close();
+    pendingTerraform = null;
     const r = EIC.compute(inputs);
     const inputError = invalidThroughput.size ? "Correct invalid throughput fields; previous results are not used for sizing." : "";
     document.querySelectorAll("[data-out]").forEach(node => {
@@ -455,7 +488,12 @@ if (typeof module !== "undefined") module.exports = EIC;
       const digits = node.dataset.out.startsWith("async.cpuTime") || node.dataset.out === "async.totalCpuTime" ? 4 : 2;
       node.textContent = !inputError && typeof v === "number" ? fmt(v, digits) : "–";
     });
-    AzureView.render(r, azureScenario, inputs, inputError);
+    const mapping = AzureView.render(r, azureScenario, inputs, inputError);
+    const canExportTerraform = mapping?.status === "preliminary";
+    document.getElementById("btnDeployExport").disabled = !canExportTerraform;
+    document.getElementById("deploy-availability").textContent = canExportTerraform
+      ? "The current mapping is available for preview. Review unsupported settings and required inputs in the dialog."
+      : "Resolve invalid inputs or blocked Azure capacity constraints before exporting Terraform.";
     let validScenario = true;
     try { AzureSizing.scenario(azureScenario); } catch { validScenario = false; }
     document.getElementById("btnExport").disabled = !!inputError || !validScenario;
@@ -526,6 +564,50 @@ if (typeof module !== "undefined") module.exports = EIC;
     save(); buildTables(); AzureView.build(azureScenario); render();
   });
   document.getElementById("btnPrint").addEventListener("click", () => window.print());
+  document.getElementById("btnDeployExport").addEventListener("click", () => {
+    try {
+      if (invalidThroughput.size) throw new Error("Correct invalid throughput fields before exporting.");
+      pendingTerraform = TerraformExport.generate(EIC.compute(inputs), azureScenario, inputs);
+      document.getElementById("deploy-preview").value = pendingTerraform.content;
+      document.getElementById("deploy-error").hidden = true;
+      document.getElementById("deploy-notes").replaceChildren(...pendingTerraform.warnings.map(text => {
+        const li = document.createElement("li"); li.textContent = text; return li;
+      }));
+      deployDialog.showModal();
+    } catch (error) {
+      pendingTerraform = null;
+      notify(`Terraform export unavailable: ${error.message}`);
+    }
+  });
+  document.getElementById("btnDeployCancel").addEventListener("click", () => deployDialog.close());
+  deployDialog.addEventListener("close", () => {
+    if (deployDialog.open) return;
+    pendingTerraform = null;
+    document.getElementById("deploy-preview").value = "";
+  });
+  document.getElementById("btnDeployDownload").addEventListener("click", () => {
+    if (!deployDialog.open || !pendingTerraform) {
+      notify("No reviewed Terraform export is available. Open the preview again.");
+      return;
+    }
+    let url;
+    let a;
+    try {
+      const blob = new Blob([pendingTerraform.content], { type: "text/plain;charset=utf-8" });
+      url = URL.createObjectURL(blob);
+      a = Object.assign(document.createElement("a"), { href: url, download: pendingTerraform.filename, hidden: true });
+      document.body.append(a);
+      a.click();
+      deployDialog.close();
+    } catch (error) {
+      const message = document.getElementById("deploy-error");
+      message.textContent = `Download could not start: ${error.message}`;
+      message.hidden = false;
+    } finally {
+      a?.remove();
+      if (url) setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  });
   document.getElementById("btnExport").addEventListener("click", () => {
     const data = AzureSizing.exportDocument(inputs, EIC.compute(inputs), azureScenario);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
