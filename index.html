@@ -53,7 +53,7 @@ body { font-family: "72", "72full", Arial, Helvetica, sans-serif; font-size: .87
 .btn.transparent:hover { background: var(--sapButton_Lite_Hover_Background); }
 .btn.emphasized { background: var(--sapButton_Emphasized_Background); border-color: var(--sapButton_Emphasized_Background); color: #fff; font-weight: 700; }
 .btn.emphasized:hover { background: var(--sapButton_Emphasized_Hover_Background); }
-.btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: .125rem solid var(--sapBrandColor); outline-offset: .0625rem; }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: .125rem solid var(--sapBrandColor); outline-offset: .0625rem; }
 
 /* Dynamic page header */
 .page-header { background: #fff; padding: 1rem 2rem 0; box-shadow: 0 .125rem .25rem rgba(34,53,72,.08); }
@@ -66,7 +66,7 @@ body { font-family: "72", "72full", Arial, Helvetica, sans-serif; font-size: .87
 .kpi.info .value { color: var(--sapInformationColor); }
 
 /* Icon tab bar */
-.tabs { display: flex; gap: .5rem; border-top: 1px solid var(--sapList_BorderColor); }
+.tabs { display: flex; flex-wrap: wrap; gap: .5rem; border-top: 1px solid var(--sapList_BorderColor); }
 .tab { font: inherit; background: none; border: 0; padding: .875rem .75rem .75rem; color: var(--sapContent_LabelColor); cursor: pointer; position: relative; font-size: .875rem; }
 .tab[aria-selected="true"] { color: var(--sapBrandColor); font-weight: 700; }
 .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: .1875rem; border-radius: .125rem .125rem 0 0; background: var(--sapBrandColor); }
@@ -116,6 +116,23 @@ a { color: var(--sapBrandColor); }
 
 .footer { color: var(--sapContent_LabelColor); font-size: .75rem; padding: 0 2rem 1rem; }
 input[type=file] { display: none; }
+.scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.scenario-grid label { display: flex; flex-direction: column; gap: .375rem; color: var(--sapContent_LabelColor); }
+.scenario-grid input, .scenario-grid select { width: 100%; min-width: 0; height: 2.5rem; border: 1px solid var(--sapField_BorderColor); border-radius: .25rem; background: #fff; padding: 0 .5rem; color: var(--sapTextColor); font: inherit; }
+.scenario-grid input:invalid { border-color: var(--sapNegativeColor); }
+summary { cursor: pointer; font-weight: 700; padding: .5rem 0; }
+.methodology, .validation-list { line-height: 1.6; }
+.validation-list { padding-left: 1.25rem; }
+.validation-list li { margin-bottom: .5rem; }
+#app-error { margin: 1rem 2rem 0; }
+#app-error[hidden] { display: none; }
+@media (max-width: 650px) {
+  main { padding: 1rem .75rem; }
+  .page-header { padding: 1rem .75rem 0; }
+  .shellbar { height: auto; min-height: 3.25rem; flex-wrap: wrap; padding: .5rem .75rem; }
+  .shellbar .actions { display: flex; flex-wrap: wrap; }
+  .tabs { gap: 0; }
+}
 
 @media print {
   .shellbar .actions, .tabs { display: none; }
@@ -156,9 +173,11 @@ input[type=file] { display: none; }
     <button class="tab" role="tab" id="tab-final" aria-controls="panel-final" aria-selected="true">Final Sizing</button>
     <button class="tab" role="tab" id="tab-sync" aria-controls="panel-sync" aria-selected="false" tabindex="-1">Synchronous Throughput</button>
     <button class="tab" role="tab" id="tab-async" aria-controls="panel-async" aria-selected="false" tabindex="-1">Asynchronous Throughput</button>
+    <button class="tab" role="tab" id="tab-azure" aria-controls="panel-azure" aria-selected="false" tabindex="-1">Azure Mapping</button>
   </nav>
 </div>
 
+<div id="app-error" class="strip warn" role="alert" hidden></div>
 <main>
   <!-- ===================== FINAL SIZING ===================== -->
   <section role="tabpanel" id="panel-final" aria-labelledby="tab-final">
@@ -248,6 +267,34 @@ input[type=file] { display: none; }
       </table>
     </div>
   </section>
+  <section role="tabpanel" id="panel-azure" aria-labelledby="tab-azure" hidden>
+    <div class="strip warn">Preliminary infrastructure estimate, not SAP-validated sizing or proof of schedulability. Workbook outputs remain unchanged. No live regional availability, quota or price lookup is performed.</div>
+    <div class="card">
+      <div class="card-header"><h2>Azure scenario</h2><span class="hint">Uses the current synchronous and asynchronous results</span></div>
+      <div class="card-body">
+        <div class="scenario-grid" id="azure-controls"></div>
+        <details open><summary>Editable resource assumptions</summary>
+          <p>Defaults are illustrative planning assumptions. Replace them with actual deployment requests, replica counts and measured capacity before use. Blank numeric assumptions are invalid; blank throughput cells mean zero.</p>
+          <div class="scenario-grid" id="azure-assumption-controls"></div>
+        </details>
+      </div>
+    </div>
+    <div id="azure-status" class="strip info" role="status" aria-live="polite"></div>
+    <div id="azure-results"></div>
+    <div class="card">
+      <div class="card-header"><h2>Methodology and source snapshots</h2></div>
+      <div class="card-body methodology">
+        <p><b>Estimation rules (application assumptions, not SAP-approved formulas):</b> worker pods = max(1 non-HA / 2 HA, ceil(workbook worker SAPS / assumed SAPS per pod), ceil(workbook worker memory / assumed memory per pod)). Policy pods use the same rule with 1,400 SAPS per assumed pod. Workbook policy memory, not the guide's different table, is retained. Broker has 1 pod non-HA or 3 equal CPU/memory-limit pods HA. These assumed pod counts do not establish actual replica topology.</p>
+        <p>CPU and memory demand = max(source aggregate floor, assumed worker + policy + broker + other in-cluster resources). SAPS demand = max(16,423 non-HA / 32,846 HA, workbook worker + policy + editable other-component SAPS). The other-component allowance defaults to the guide's 8,400 proxy; its composition is unresolved. Replace it with a cluster-only allowance excluding external DB/cache. It covers broker within this model, so no extra workbook broker SAPS is added. Pod slots = max(40 non-HA / 90 HA, assumed pods + other pods); the source baseline already includes Kubernetes components. Ephemeral demand = 10 GiB per assumed worker pod. Largest-pod SAPS/CPU/memory/ephemeral fit is checked separately; no bin-packing proof is attempted.</p>
+        <p>For each constraint: required surviving nodes = ceil(demand x (1 + headroom/100) / usable capacity per node). CPU/memory/SAPS usable capacity = catalog value x (1 - reserve/100); pod slots and user-provided usable ephemeral capacity are not reduced again. All constraints must fit after the selected failure. HA additionally requires at least three surviving nodes in this conservative full-replica model. Core persistent allowance = max(source floor, broker volumes + workbook policy disk), plus separate optional Prometheus/shared allowances; storage is not multiplied by headroom or survivor counts.</p>
+        <p><a href="https://me.sap.com/notes/3247839" target="_blank" rel="noopener">SAP Note 3247839 v96, released 2026-11-03</a>: p.1 AKS 1.32-1.35, linux/amd64; p.2 cluster floors, pod counts and broker tiers/replicas; p.3 external DB/cache requirements; p.4 storage requirements. Floors are aggregate cluster minima including EIC, not per-node requirements.</p>
+        <p><a href="https://me.sap.com/notes/1928533" target="_blank" rel="noopener">SAP Note 1928533 v199, released 2026-11-04</a>: catalog below uses the <b>SAPS</b> column, not ASAPS. General SAP VM ratings do not certify AKS/EIC placement. All listed SKUs are x86, at least 4 vCPU; 128 GB base VHD constraint from the selected series' note entries.</p>
+        <div class="scroll"><table><thead><tr><th class="left">VM SKU</th><th>vCPU</th><th>GiB</th><th>SAPS</th><th>Note page</th></tr></thead><tbody id="azure-catalog"></tbody></table></div>
+        <p>Catalog version: <code>2026-11-04-note1928533-v199</code>. Sizing Guide snapshot dated 2026-10-13, pp.7-8: baseline and 8,400 other-component SAPS; p.26: 30% HA guidance. The guide's 30% and the note's doubled minima are not stacked. Baseline accounting remains ambiguous and requires reconciliation with SAP.</p>
+        <p>Microsoft Learn <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv6-series" target="_blank" rel="noopener">Dsv6</a> / <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/memory-optimized/esv6-series" target="_blank" rel="noopener">Esv6</a> / <a href="https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv5-series" target="_blank" rel="noopener">Dsv5</a> specifications checked 2026-11-13. These series have no local temp disk; ephemeral OS compatibility must be checked against the exact AKS SKU/image. Source snapshots are dated facts, not a guarantee of current support. SAP links may require authorization; restricted documents are not distributed with this app.</p>
+      </div>
+    </div>
+  </section>
 </main>
 <div class="footer">Formulas replicate EIC_Sizing_Calculator_Tool_v3+1.xlsx. Hover a calculated value to see its source Excel formula. Inputs are saved in this browser.</div>
 
@@ -333,29 +380,37 @@ const EIC = (() => {
 if (typeof module !== "undefined") module.exports = EIC;
 </script>
 
+<script src="azure-sizing.js"></script>
+<script src="azure-view.js"></script>
 <script>
 (() => {
   const STORAGE_KEY = "eic-sizing-calculator-v3+1";
-  let inputs = load();
+  const invalidThroughput = new Set();
+  let { inputs, azure: azureScenario } = load();
+
+  function notify(message) {
+    const node = document.getElementById("app-error");
+    node.textContent = message;
+    node.hidden = !message;
+  }
 
   function load() {
     try {
-      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (raw) return normalize(raw);
-    } catch { /* ignore corrupt storage */ }
-    return EIC.emptyInputs();
-  }
-  function normalize(raw) {
-    const base = EIC.emptyInputs();
-    const take = (arr, i) => { const v = Number(arr?.[i]); return isFinite(v) ? v : 0; };
-    for (let i = 0; i < 9; i++) {
-      base.sync.simple[i] = take(raw?.sync?.simple, i);
-      base.sync.complex[i] = take(raw?.sync?.complex, i);
-      base.async[i] = take(raw?.async, i);
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored !== null) return AzureSizing.readDocument(JSON.parse(stored));
+    } catch (error) {
+      notify(`Saved inputs could not be loaded: ${error.message} Defaults are shown; the original stored data has not been overwritten.`);
     }
-    return base;
+    return { inputs: EIC.emptyInputs(), azure: AzureSizing.scenario() };
   }
-  const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
+  function save() {
+    try {
+      if (invalidThroughput.size) throw new Error("Correct invalid throughput fields first.");
+      const state = { schemaVersion: 2, inputs, azure: { scenario: AzureSizing.scenario(azureScenario) } };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      notify("");
+    } catch (error) { notify(`Changes not saved: ${error.message}`); }
+  }
 
   const fmt = (v, maxDigits = 2) => v.toLocaleString("en-US", { maximumFractionDigits: maxDigits });
   const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -394,18 +449,44 @@ if (typeof module !== "undefined") module.exports = EIC;
 
   function render() {
     const r = EIC.compute(inputs);
+    const inputError = invalidThroughput.size ? "Correct invalid throughput fields; previous results are not used for sizing." : "";
     document.querySelectorAll("[data-out]").forEach(node => {
       const v = node.dataset.out.split(".").reduce((o, k) => o?.[k], r);
       const digits = node.dataset.out.startsWith("async.cpuTime") || node.dataset.out === "async.totalCpuTime" ? 4 : 2;
-      node.textContent = typeof v === "number" ? fmt(v, digits) : "–";
+      node.textContent = !inputError && typeof v === "number" ? fmt(v, digits) : "–";
     });
+    AzureView.render(r, azureScenario, inputs, inputError);
+    let validScenario = true;
+    try { AzureSizing.scenario(azureScenario); } catch { validScenario = false; }
+    document.getElementById("btnExport").disabled = !!inputError || !validScenario;
   }
 
   document.addEventListener("input", e => {
     const t = e.target;
+    if (t.dataset.azure) {
+      const key = t.dataset.azure;
+      azureScenario[key] = t.type === "number" ? (t.value === "" || t.validity.badInput ? null : Number(t.value)) : t.value;
+      if (key === "mode") {
+        azureScenario.failure = t.value === "ha" ? "node" : "none";
+        document.getElementById("az-failure").value = azureScenario.failure;
+      }
+      save(); render();
+      return;
+    }
     if (!t.dataset.in) return;
     const v = t.value === "" ? 0 : Number(t.value);
-    const val = isFinite(v) ? v : 0;
+    const valid = !t.validity.badInput && Number.isFinite(v) && Math.abs(v) <= 1e9;
+    const key = `${t.dataset.in}.${t.dataset.i}`;
+    if (!valid) {
+      invalidThroughput.add(key);
+      t.setAttribute("aria-invalid", "true");
+      t.classList.add("warn");
+      t.title = "Enter a finite throughput with magnitude no greater than 1,000,000,000.";
+      notify(t.title); render(); return;
+    }
+    invalidThroughput.delete(key);
+    t.removeAttribute("aria-invalid");
+    const val = v;
     const i = Number(t.dataset.i);
     if (t.dataset.in === "async") inputs.async[i] = val;
     else inputs.sync[t.dataset.in.split(".")[1]][i] = val;
@@ -428,8 +509,11 @@ if (typeof module !== "undefined") module.exports = EIC;
   tabs.forEach((t, i) => {
     t.addEventListener("click", () => selectTab(t));
     t.addEventListener("keydown", e => {
+      if (["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) e.preventDefault();
       if (e.key === "ArrowRight") selectTab(tabs[(i + 1) % tabs.length]);
       if (e.key === "ArrowLeft") selectTab(tabs[(i - 1 + tabs.length) % tabs.length]);
+      if (e.key === "Home") selectTab(tabs[0]);
+      if (e.key === "End") selectTab(tabs[tabs.length - 1]);
     });
   });
   document.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => {
@@ -437,26 +521,33 @@ if (typeof module !== "undefined") module.exports = EIC;
   }));
 
   document.getElementById("btnReset").addEventListener("click", () => {
-    if (!confirm("Reset all throughput inputs to 0?")) return;
-    inputs = EIC.emptyInputs(); save(); buildTables(); render();
+    if (!confirm("Reset all throughput inputs and Azure scenario assumptions?")) return;
+    inputs = EIC.emptyInputs(); azureScenario = AzureSizing.scenario(); invalidThroughput.clear();
+    save(); buildTables(); AzureView.build(azureScenario); render();
   });
   document.getElementById("btnPrint").addEventListener("click", () => window.print());
   document.getElementById("btnExport").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ tool: "EIC Sizing Calculator v3+1", exportedAt: new Date().toISOString(), inputs, results: EIC.compute(inputs) }, null, 2)], { type: "application/json" });
+    const data = AzureSizing.exportDocument(inputs, EIC.compute(inputs), azureScenario);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "eic-sizing.json" });
     a.click(); URL.revokeObjectURL(a.href);
   });
   const file = document.getElementById("fileImport");
   document.getElementById("btnImport").addEventListener("click", () => file.click());
   file.addEventListener("change", async () => {
+    if (!file.files.length) return;
     try {
+      if (file.files[0].size > 1024 * 1024) throw new Error("JSON files must not exceed 1 MiB.");
       const data = JSON.parse(await file.files[0].text());
-      inputs = normalize(data.inputs || data); save(); buildTables(); render();
-    } catch { alert("Could not read the selected file. Please choose a JSON file exported from this calculator."); }
+      const state = AzureSizing.readDocument(data);
+      inputs = state.inputs; azureScenario = state.azure; invalidThroughput.clear();
+      save(); buildTables(); AzureView.build(azureScenario); render();
+    } catch (error) { notify(`Import rejected; current inputs are unchanged. ${error.message}`); }
     file.value = "";
   });
 
   buildTables();
+  AzureView.build(azureScenario);
   render();
 })();
 </script>
