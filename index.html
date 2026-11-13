@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EIC Sizing Calculator</title>
+<style>
+@font-face { font-family: "72"; font-weight: 400; src: url("https://ui5.sap.com/resources/sap/ui/core/themes/sap_horizon/fonts/72-Regular.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "72"; font-weight: 700; src: url("https://ui5.sap.com/resources/sap/ui/core/themes/sap_horizon/fonts/72-Bold.woff2") format("woff2"); font-display: swap; }
+
+:root {
+  --sapBrandColor: #0070f2;
+  --sapBackgroundColor: #f5f6f7;
+  --sapShellColor: #fff;
+  --sapTextColor: #1d2d3e;
+  --sapContent_LabelColor: #556b82;
+  --sapList_BorderColor: #e5e5e5;
+  --sapList_HeaderBackground: #fff;
+  --sapList_HeaderTextColor: #1d2d3e;
+  --sapField_BorderColor: #556b82;
+  --sapField_Background: #fff;
+  --sapField_ReadOnly_Background: rgba(234,236,238,.5);
+  --sapGroup_TitleBackground: #fff;
+  --sapTile_Background: #fff;
+  --sapPositiveColor: #256f3a;
+  --sapCriticalColor: #e76500;
+  --sapNegativeColor: #aa0808;
+  --sapInformationColor: #0070f2;
+  --sapInformationBackground: #e1f4ff;
+  --sapWarningBackground: #fff8d6;
+  --sapErrorBackground: #ffeaf4;
+  --sapContent_Shadow0: 0 0 .125rem 0 rgba(34,53,72,.15), 0 .125rem .25rem 0 rgba(34,53,72,.15);
+  --sapButton_Lite_Hover_Background: #eaecee;
+  --sapButton_Emphasized_Background: #0070f2;
+  --sapButton_Emphasized_Hover_Background: #0064d9;
+  --sapElement_BorderCornerRadius: .75rem;
+  --sapField_BorderCornerRadius: .25rem;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: "72", "72full", Arial, Helvetica, sans-serif; font-size: .875rem; color: var(--sapTextColor); background: var(--sapBackgroundColor); }
+
+/* Shell bar */
+.shellbar { position: sticky; top: 0; z-index: 10; height: 3.25rem; display: flex; align-items: center; gap: .75rem; padding: 0 1rem; background: var(--sapShellColor); box-shadow: inset 0 -.0625rem 0 #d9d9d9; }
+.shellbar .logo { height: 2rem; }
+.shellbar .title { font-weight: 700; font-size: .875rem; }
+.shellbar .subtitle { color: var(--sapContent_LabelColor); font-size: .75rem; }
+.shellbar .spacer { flex: 1; }
+
+.btn { font: inherit; font-size: .875rem; height: 2.25rem; padding: 0 .75rem; border-radius: .5rem; border: 1px solid #bcc3ca; background: #fff; color: var(--sapBrandColor); cursor: pointer; display: inline-flex; align-items: center; gap: .375rem; }
+.btn:hover { background: var(--sapButton_Lite_Hover_Background); }
+.btn.transparent { border-color: transparent; background: transparent; }
+.btn.transparent:hover { background: var(--sapButton_Lite_Hover_Background); }
+.btn.emphasized { background: var(--sapButton_Emphasized_Background); border-color: var(--sapButton_Emphasized_Background); color: #fff; font-weight: 700; }
+.btn.emphasized:hover { background: var(--sapButton_Emphasized_Hover_Background); }
+.btn:focus-visible, .tab:focus-visible, input:focus-visible { outline: .125rem solid var(--sapBrandColor); outline-offset: .0625rem; }
+
+/* Dynamic page header */
+.page-header { background: #fff; padding: 1rem 2rem 0; box-shadow: 0 .125rem .25rem rgba(34,53,72,.08); }
+.page-header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.page-header .desc { margin: .25rem 0 1rem; color: var(--sapContent_LabelColor); }
+.kpis { display: flex; flex-wrap: wrap; gap: 2.5rem; padding-bottom: 1rem; }
+.kpi .label { color: var(--sapContent_LabelColor); font-size: .875rem; }
+.kpi .value { font-size: 1.5rem; color: var(--sapTextColor); }
+.kpi .unit { font-size: .875rem; color: var(--sapContent_LabelColor); margin-left: .25rem; }
+.kpi.info .value { color: var(--sapInformationColor); }
+
+/* Icon tab bar */
+.tabs { display: flex; gap: .5rem; border-top: 1px solid var(--sapList_BorderColor); }
+.tab { font: inherit; background: none; border: 0; padding: .875rem .75rem .75rem; color: var(--sapContent_LabelColor); cursor: pointer; position: relative; font-size: .875rem; }
+.tab[aria-selected="true"] { color: var(--sapBrandColor); font-weight: 700; }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: .1875rem; border-radius: .125rem .125rem 0 0; background: var(--sapBrandColor); }
+.tab:hover { color: var(--sapBrandColor); }
+
+main { padding: 1rem 2rem 3rem; }
+section[role="tabpanel"][hidden] { display: none; }
+
+.card { background: var(--sapTile_Background); border-radius: var(--sapElement_BorderCornerRadius); box-shadow: var(--sapContent_Shadow0); margin-bottom: 1rem; overflow: hidden; }
+.card-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; padding: .875rem 1rem; border-bottom: 1px solid var(--sapList_BorderColor); }
+.card-header h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+.card-header .hint { color: var(--sapContent_LabelColor); font-size: .8125rem; }
+.card-body { padding: 1rem; }
+.scroll { overflow-x: auto; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { padding: .5rem .75rem; text-align: right; border-bottom: 1px solid var(--sapList_BorderColor); white-space: nowrap; }
+th { color: var(--sapContent_LabelColor); font-weight: 400; font-size: .8125rem; background: var(--sapList_HeaderBackground); vertical-align: bottom; }
+th.left, td.left { text-align: left; }
+td.left { white-space: normal; min-width: 10rem; }
+tr.total td { font-weight: 700; background: #f7f8f9; }
+td.calc { font-variant-numeric: tabular-nums; }
+td.calc[title] { cursor: help; }
+td.empty { color: #a9b4be; }
+
+input.num { width: 5rem; height: 2.25rem; padding: 0 .625rem; text-align: right; font: inherit; color: var(--sapTextColor); background: var(--sapField_Background); border: 1px solid #bcc3ca; border-bottom-color: var(--sapField_BorderColor); border-radius: var(--sapField_BorderCornerRadius); font-variant-numeric: tabular-nums; }
+input.num:hover { background: #fff; border-color: var(--sapBrandColor); box-shadow: 0 0 0 .0625rem var(--sapBrandColor) inset; }
+input.num.warn { border-color: var(--sapCriticalColor); background: var(--sapWarningBackground); box-shadow: 0 -.0625rem 0 0 var(--sapCriticalColor) inset; }
+
+.strip { display: flex; gap: .5rem; align-items: flex-start; padding: .5rem .75rem; border-radius: .5rem; margin-bottom: 1rem; border: 1px solid; }
+.strip.info { background: var(--sapInformationBackground); border-color: #0070f2; }
+.strip.warn { background: var(--sapWarningBackground); border-color: #e76500; }
+.strip .ico { font-weight: 700; width: 1rem; text-align: center; }
+.strip.info .ico { color: var(--sapInformationColor); }
+.strip.warn .ico { color: var(--sapCriticalColor); }
+
+.grid-2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); gap: 1rem; }
+@media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.objstatus { font-weight: 700; }
+.objstatus.info { color: var(--sapInformationColor); }
+.objstatus.pos { color: var(--sapPositiveColor); }
+
+ol.disclaimer { margin: 0; padding-left: 1.25rem; line-height: 1.5; }
+ol.disclaimer li { margin-bottom: .5rem; }
+a { color: var(--sapBrandColor); }
+
+.footer { color: var(--sapContent_LabelColor); font-size: .75rem; padding: 0 2rem 1rem; }
+input[type=file] { display: none; }
+
+@media print {
+  .shellbar .actions, .tabs { display: none; }
+  section[role="tabpanel"][hidden] { display: block !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<header class="shellbar">
+  <svg class="logo" viewBox="0 0 92 45" aria-label="SAP"><defs><linearGradient id="g" x1="46" y1="0" x2="46" y2="45" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#00b8f1"/><stop offset=".22" stop-color="#06a5e5"/><stop offset=".8" stop-color="#1870c5"/><stop offset="1" stop-color="#1d61bc"/></linearGradient></defs><polyline points="0 45 45.94 45 92 0 0 0 0 45" fill="url(#g)"/><text x="8" y="31" font-family="Arial, sans-serif" font-weight="700" font-size="24" fill="#fff">SAP</text></svg>
+  <div>
+    <div class="title">EIC Sizing Calculator</div>
+    <div class="subtitle">Edge Integration Cell · Tool v3+1</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn transparent" id="btnImport" title="Load inputs from a JSON file">Import</button>
+    <button class="btn transparent" id="btnExport" title="Save inputs and results as JSON">Export</button>
+    <button class="btn transparent" id="btnPrint">Print</button>
+    <button class="btn" id="btnReset">Reset inputs</button>
+    <input type="file" id="fileImport" accept="application/json,.json">
+  </div>
+</header>
+
+<div class="page-header">
+  <h1>Edge Integration Cell Sizing</h1>
+  <p class="desc">Worker and Policy Engine sizing calculated from synchronous and asynchronous message throughput.</p>
+  <div class="kpis" aria-live="polite">
+    <div class="kpi info"><div class="label">Total Req/Sec [Sync + Async]</div><div><span class="value" data-out="final.totalReqPerSec">0</span><span class="unit">req/s</span></div></div>
+    <div class="kpi"><div class="label">Worker CPU</div><div><span class="value" data-out="final.worker.saps">0</span><span class="unit">SAPS</span></div></div>
+    <div class="kpi"><div class="label">Worker Memory</div><div><span class="value" data-out="final.worker.memoryGb">0</span><span class="unit">GB</span></div></div>
+    <div class="kpi"><div class="label">Policy Engine CPU</div><div><span class="value" data-out="final.policyEngine.saps">0</span><span class="unit">SAPS</span></div></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-final" aria-controls="panel-final" aria-selected="true">Final Sizing</button>
+    <button class="tab" role="tab" id="tab-sync" aria-controls="panel-sync" aria-selected="false" tabindex="-1">Synchronous Throughput</button>
+    <button class="tab" role="tab" id="tab-async" aria-controls="panel-async" aria-selected="false" tabindex="-1">Asynchronous Throughput</button>
+  </nav>
+</div>
+
+<main>
+  <!-- ===================== FINAL SIZING ===================== -->
+  <section role="tabpanel" id="panel-final" aria-labelledby="tab-final">
+    <div class="strip info"><span class="ico">i</span><div><b>Pre-requisite:</b> Please complete the Message Throughput table based on your payload size in the <a href="#" data-goto="sync">Synchronous Throughput</a> and <a href="#" data-goto="async">Asynchronous Throughput</a> tabs.</div></div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><h2>Final Sizing [ Sync + Async ]</h2></div>
+        <div class="scroll"><table>
+          <thead><tr><th class="left">Component</th><th>CPU<br>(SAPS)</th><th>Memory<br>(GB)</th><th>Persistent Memory GiB<br>(Disk)</th></tr></thead>
+          <tbody>
+            <tr><td class="left">Worker ( Sync + Async )</td>
+              <td class="calc" data-out="final.worker.saps" title="Asynchronous_Throughput!B17 + Synchronous_Throughput!B14"></td>
+              <td class="calc" data-out="final.worker.memoryGb" title="ROUNDUP(B10/1400,0)*4"></td>
+              <td class="empty">–</td></tr>
+            <tr><td class="left">Policy Engine ( Sync + Async )</td>
+              <td class="calc" data-out="final.policyEngine.saps" title="ROUNDUP(J10/20,0)*1400"></td>
+              <td class="calc" data-out="final.policyEngine.memoryGb" title="ROUNDUP(J10/20,0)*1"></td>
+              <td class="calc" data-out="final.policyEngine.diskGib" title="ROUNDUP(J10/20,0)"></td></tr>
+            <tr><td class="left">Prometheus</td><td class="empty">–</td><td class="empty">–</td><td class="calc" data-out="final.prometheus.diskGib"></td></tr>
+            <tr><td class="left">Shared Storage (java thread, heap dumps etc.)</td><td class="empty">–</td><td class="empty">–</td><td class="calc" data-out="final.sharedStorage.diskGib"></td></tr>
+            <tr><td class="left">Message Service (Solace)*</td><td class="calc" data-out="final.messageService.saps"></td><td class="calc" data-out="final.messageService.memoryGb"></td><td class="calc" data-out="final.messageService.diskGib"></td></tr>
+            <tr><td class="left">PostgreSQL DB (MPL)</td><td class="empty">–</td><td class="empty">–</td><td class="empty">–</td></tr>
+            <tr><td class="left">Redis</td><td class="empty">–</td><td class="empty">–</td><td class="empty">–</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Throughput</h2></div>
+        <div class="card-body">
+          <div class="kpi info"><div class="label">Total Req/ Sec [Sync + Async]</div>
+            <div><span class="value" data-out="final.totalReqPerSec" title="Asynchronous_Throughput!B12 + Synchronous_Throughput!K5">0</span><span class="unit">req/s</span></div></div>
+          <p style="color:var(--sapContent_LabelColor);margin:.75rem 0 0">Synchronous: <b data-out="sync.totalMsgPerSec">0</b> msg/s · Asynchronous: <b data-out="async.totalReqPerSec">0</b> req/s</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Disclaimer</h2></div>
+      <div class="card-body">
+        <ol class="disclaimer">
+          <li>The Sizing Excel utility calculates only the Worker and Policy Engine sizing. In the Final Sizing Table above, the Worker and Policy Engine sizing are calculated dynamically, while the remaining component values are based on initial sizing, hardcoded, and directly referenced from the EIC Sizing Guide</li>
+          <li>For Database PostgreSQL, and Redis sizing, please refer to the respective sections in the EIC Sizing Guide, as the sizing depends on the number of messages and artifacts.</li>
+          <li>Always download the latest sizing guide locally.<br><a href="https://help.sap.com/docs/integration-suite/sap-integration-suite/sizing-guidelines?version=CLOUD" target="_blank" rel="noopener">https://help.sap.com/docs/integration-suite/sap-integration-suite/sizing-guidelines?version=CLOUD</a></li>
+          <li>Calculate the total SAPs required for your landscape using the sizing guide. Use the initial sizing SAPs values (HA or non-HA) as the baseline, and determine the delta (additional SAPs) by subtracting the initial SAPs from the total required SAPs.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SYNCHRONOUS ===================== -->
+  <section role="tabpanel" id="panel-sync" aria-labelledby="tab-sync" hidden>
+    <div class="card">
+      <div class="card-header"><h2>Message Size throughput per second</h2><span class="hint">to be evaluated for POC · enter messages per second</span></div>
+      <div class="scroll"><table id="syncInputTable"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>SAPS Calculation</h2><span class="hint">Simple: ROUNDUP(1400·(0.063 + 0.00019·KB)·msg/s) · Complex: ROUNDUP(1400·(0.2513 + 0.0002·KB)·msg/s)</span></div>
+      <div class="scroll"><table id="syncSapsTable"></table></div>
+    </div>
+    <div class="card" style="max-width:40rem">
+      <div class="card-header"><h2>Worker (sync)</h2></div>
+      <table>
+        <thead><tr><th class="left">Component</th><th>CPU<br>(SAPS)</th><th>Memory<br>(GB)</th><th>Persistent Memory GiB<br>(Disk)</th></tr></thead>
+        <tbody><tr><td class="left">Worker (sync)</td>
+          <td class="calc" data-out="sync.worker.saps" title="ROUNDUP(K11/1400,0)*1400"></td>
+          <td class="calc" data-out="sync.worker.memoryGb" title="ROUNDUP(B14/1400,0)*4"></td>
+          <td class="empty">–</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== ASYNCHRONOUS ===================== -->
+  <section role="tabpanel" id="panel-async" aria-labelledby="tab-async" hidden>
+    <div class="card">
+      <div class="card-header"><h2>Asynchronous Throughput</h2><span class="hint">Calculated CPU Time = 0.0002·KB + 0.0453 (per message)</span></div>
+      <div class="scroll"><table id="asyncTable"></table></div>
+    </div>
+    <div class="card" style="max-width:40rem">
+      <div class="card-header"><h2>Worker ( Async )</h2></div>
+      <table>
+        <thead><tr><th class="left">Component</th><th>CPU<br>(SAPS)</th><th>Memory<br>(GB)</th></tr></thead>
+        <tbody><tr><td class="left">Worker ( Async )</td>
+          <td class="calc" data-out="async.worker.saps" title="SUM(D3:D11)"></td>
+          <td class="calc" data-out="async.worker.memoryGb" title="ROUNDUP((B17/1400),0)*4"></td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div class="footer">Formulas replicate EIC_Sizing_Calculator_Tool_v3+1.xlsx. Hover a calculated value to see its source Excel formula. Inputs are saved in this browser.</div>
+
+<script id="eic-calc">
+// ---- Calculation engine: 1:1 port of EIC_Sizing_Calculator_Tool_v3+1.xlsx ----
+const EIC = (() => {
+  // Synchronous_Throughput row 2 labels and row 8 KB values (3MB=3096, 4MB=4192 as in the workbook).
+  const SYNC_SIZES = [
+    { label: "100KB", kb: 100 }, { label: "250KB", kb: 250 }, { label: "500KB", kb: 500 },
+    { label: "750KB", kb: 750 }, { label: "1MB", kb: 1024 }, { label: "2MB", kb: 2048 },
+    { label: "3MB", kb: 3096 }, { label: "4MB", kb: 4192 }, { label: "5MB", kb: 5120 },
+  ];
+  // Asynchronous_Throughput A3:A11.
+  const ASYNC_SIZES = [100, 250, 500, 750, 1024, 2048, 1024 * 3, 1024 * 4, 1024 * 5];
+
+  const FIXED = {
+    prometheus: { diskGib: 20 },
+    sharedStorage: { diskGib: 51 },
+    messageService: { saps: 2800, memoryGb: 6.5, diskGib: 100 },
+  };
+
+  // Excel ROUNDUP: rounds away from zero; Excel works on 15 significant digits.
+  function roundUp(x, digits = 0) {
+    const f = Math.pow(10, digits);
+    const v = Number((Number(x.toPrecision(15)) * f).toPrecision(15));
+    return (v < 0 ? -Math.ceil(-v) : Math.ceil(v)) / f;
+  }
+  const sum = (a) => a.reduce((s, v) => s + v, 0);
+  const n = (v) => (typeof v === "number" && isFinite(v) ? v : 0);
+
+  function emptyInputs() {
+    return { sync: { simple: Array(9).fill(0), complex: Array(9).fill(0) }, async: Array(9).fill(0) };
+  }
+
+  function compute(inp) {
+    const simple = SYNC_SIZES.map((_, i) => n(inp.sync.simple[i]));
+    const complex = SYNC_SIZES.map((_, i) => n(inp.sync.complex[i]));
+    const asyncReq = ASYNC_SIZES.map((_, i) => n(inp.async[i]));
+
+    // Synchronous_Throughput
+    const simpleSaps = SYNC_SIZES.map((s, i) => roundUp(1400 * (0.063 + 0.00019 * s.kb) * simple[i], 0));   // B9:J9
+    const complexSaps = SYNC_SIZES.map((s, i) => roundUp(1400 * (0.2513 + 0.0002 * s.kb) * complex[i], 0)); // B10:J10
+    const sync = {
+      simpleTotal: sum(simple),                 // K3
+      complexTotal: sum(complex),               // K4
+      simpleSaps, complexSaps,
+      simpleSapsTotal: sum(simpleSaps),         // K9
+      complexSapsTotal: sum(complexSaps),       // K10
+    };
+    sync.totalMsgPerSec = sync.simpleTotal + sync.complexTotal;                 // K5
+    sync.totalWorkerSaps = sync.simpleSapsTotal + sync.complexSapsTotal;        // K11
+    sync.memoryGb = roundUp(sync.totalWorkerSaps / 1400, 0) * 4;                // K12
+    const syncWorkerSaps = roundUp(sync.totalWorkerSaps / 1400, 0) * 1400;      // B14
+    sync.worker = { saps: syncWorkerSaps, memoryGb: roundUp(syncWorkerSaps / 1400, 0) * 4 }; // B14, C14
+
+    // Asynchronous_Throughput
+    const cpuTime = ASYNC_SIZES.map((kb, i) => asyncReq[i] * (0.0453 + 0.0002 * kb));                               // C3:C11
+    const saps = ASYNC_SIZES.map((kb, i) => roundUp(1400 * (asyncReq[i] * (0.0453 + 0.0002 * kb)) / 50, 0) * 50);   // D3:D11
+    const asyncRes = {
+      cpuTime, saps,
+      totalReqPerSec: sum(asyncReq),            // B12
+      totalCpuTime: sum(cpuTime.slice(0, 8)),   // C12 = SUM(C3:C10) — workbook excludes the 5MB row
+      totalSaps: sum(saps),                     // D12
+    };
+    const asyncWorkerSaps = sum(saps);          // B17
+    asyncRes.worker = { saps: asyncWorkerSaps, memoryGb: roundUp(asyncWorkerSaps / 1400, 0) * 4 }; // B17, C17
+
+    // Final Sizing
+    const workerSaps = asyncWorkerSaps + syncWorkerSaps;                        // B10
+    const totalReqPerSec = asyncRes.totalReqPerSec + sync.totalMsgPerSec;       // J10
+    const pe = roundUp(totalReqPerSec / 20, 0);
+    const final = {
+      totalReqPerSec,
+      worker: { saps: workerSaps, memoryGb: roundUp(workerSaps / 1400, 0) * 4 }, // B10, C10
+      policyEngine: { saps: pe * 1400, memoryGb: pe * 1, diskGib: pe },         // B11, C11, D11
+      ...FIXED,
+    };
+    return { sync, async: asyncRes, final };
+  }
+
+  return { SYNC_SIZES, ASYNC_SIZES, FIXED, roundUp, compute, emptyInputs };
+})();
+if (typeof module !== "undefined") module.exports = EIC;
+</script>
+
+<script>
+(() => {
+  const STORAGE_KEY = "eic-sizing-calculator-v3+1";
+  let inputs = load();
+
+  function load() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (raw) return normalize(raw);
+    } catch { /* ignore corrupt storage */ }
+    return EIC.emptyInputs();
+  }
+  function normalize(raw) {
+    const base = EIC.emptyInputs();
+    const take = (arr, i) => { const v = Number(arr?.[i]); return isFinite(v) ? v : 0; };
+    for (let i = 0; i < 9; i++) {
+      base.sync.simple[i] = take(raw?.sync?.simple, i);
+      base.sync.complex[i] = take(raw?.sync?.complex, i);
+      base.async[i] = take(raw?.async, i);
+    }
+    return base;
+  }
+  const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
+
+  const fmt = (v, maxDigits = 2) => v.toLocaleString("en-US", { maximumFractionDigits: maxDigits });
+  const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; };
+  const input = (path, i, v, label) =>
+    `<input class="num" type="number" step="any" inputmode="decimal" data-in="${path}" data-i="${i}" value="${v || 0}" aria-label="${label}">`;
+
+  function buildTables() {
+    const S = EIC.SYNC_SIZES;
+    document.getElementById("syncInputTable").innerHTML = `
+      <thead><tr><th class="left">Size</th>${S.map(s => `<th>${s.label}</th>`).join("")}<th>Total Message Count<br>(msg per s)</th></tr></thead>
+      <tbody>
+        <tr><td class="left">Simple iflow - 30% of volume</td>${S.map((s, i) => `<td>${input("sync.simple", i, inputs.sync.simple[i], "Simple iflow " + s.label)}</td>`).join("")}<td class="calc" data-out="sync.simpleTotal" title="SUM(B3:J3)"></td></tr>
+        <tr><td class="left">Complex iflow - 70% of volume</td>${S.map((s, i) => `<td>${input("sync.complex", i, inputs.sync.complex[i], "Complex iflow " + s.label)}</td>`).join("")}<td class="calc" data-out="sync.complexTotal" title="SUM(B4:J4)"></td></tr>
+        <tr class="total"><td colspan="${S.length + 1}">Total</td><td class="calc" data-out="sync.totalMsgPerSec" title="K3+K4"></td></tr>
+      </tbody>`;
+    const cols = "BCDEFGHIJ";
+    document.getElementById("syncSapsTable").innerHTML = `
+      <thead><tr><th class="left">Size [KB]</th>${S.map(s => `<th>${s.kb}</th>`).join("")}<th>Total SAPS</th></tr></thead>
+      <tbody>
+        <tr><td class="left">Simple iflow - 30% of volume</td>${S.map((_, i) => `<td class="calc" data-out="sync.simpleSaps.${i}" title="ROUNDUP(1400*(0.063+0.00019*${cols[i]}8)*${cols[i]}3,0)"></td>`).join("")}<td class="calc" data-out="sync.simpleSapsTotal" title="SUM(B9:J9)"></td></tr>
+        <tr><td class="left">Complex iflow - 70% of volume</td>${S.map((_, i) => `<td class="calc" data-out="sync.complexSaps.${i}" title="ROUNDUP(1400*(0.2513+0.0002*${cols[i]}8)*${cols[i]}4,0)"></td>`).join("")}<td class="calc" data-out="sync.complexSapsTotal" title="SUM(B10:J10)"></td></tr>
+        <tr class="total"><td colspan="${S.length + 1}">Total Worker CPU [SAPS]</td><td class="calc" data-out="sync.totalWorkerSaps" title="K9+K10"></td></tr>
+        <tr class="total"><td colspan="${S.length + 1}">Memory [GB]</td><td class="calc" data-out="sync.memoryGb" title="ROUNDUP(K11/1400,0)*4"></td></tr>
+      </tbody>`;
+    document.getElementById("asyncTable").innerHTML = `
+      <thead><tr><th class="left">Payload Size [KB]</th><th>Throughput requirement<br>[Req/sec]</th><th>Calculated CPU Time [s]<br>per message size in KB</th><th>CPU [SAPS]</th></tr></thead>
+      <tbody>
+        ${EIC.ASYNC_SIZES.map((kb, i) => `<tr><td class="left">${kb}</td><td>${input("async", i, inputs.async[i], "Async throughput " + kb + " KB")}</td>
+          <td class="calc" data-out="async.cpuTime.${i}" title="$B${i + 3}*(0.0453+0.0002*$A${i + 3})"></td>
+          <td class="calc" data-out="async.saps.${i}" title="ROUNDUP(1400*($B${i + 3}*(0.0453+0.0002*$A${i + 3}))/50,0)*50"></td></tr>`).join("")}
+        <tr class="total"><td class="left">Total</td><td class="calc" data-out="async.totalReqPerSec" title="SUM(B3:B11)"></td>
+          <td class="calc" data-out="async.totalCpuTime" title="SUM(C3:C10) — as in the workbook, the 5120 KB row is not included"></td>
+          <td class="calc" data-out="async.totalSaps" title="SUM(D3:D11)"></td></tr>
+      </tbody>`;
+  }
+
+  function render() {
+    const r = EIC.compute(inputs);
+    document.querySelectorAll("[data-out]").forEach(node => {
+      const v = node.dataset.out.split(".").reduce((o, k) => o?.[k], r);
+      const digits = node.dataset.out.startsWith("async.cpuTime") || node.dataset.out === "async.totalCpuTime" ? 4 : 2;
+      node.textContent = typeof v === "number" ? fmt(v, digits) : "–";
+    });
+  }
+
+  document.addEventListener("input", e => {
+    const t = e.target;
+    if (!t.dataset.in) return;
+    const v = t.value === "" ? 0 : Number(t.value);
+    const val = isFinite(v) ? v : 0;
+    const i = Number(t.dataset.i);
+    if (t.dataset.in === "async") inputs.async[i] = val;
+    else inputs.sync[t.dataset.in.split(".")[1]][i] = val;
+    t.classList.toggle("warn", val < 0);
+    t.title = val < 0 ? "Negative throughput is unusual – the calculation still uses it, as Excel would." : "";
+    save(); render();
+  });
+  document.addEventListener("focusin", e => { if (e.target.matches?.("input.num")) e.target.select(); });
+
+  // Tabs (SAP Icon Tab Bar behaviour, with arrow-key navigation)
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function selectTab(tab) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+    tab.focus({ preventScroll: true });
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => selectTab(t));
+    t.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight") selectTab(tabs[(i + 1) % tabs.length]);
+      if (e.key === "ArrowLeft") selectTab(tabs[(i - 1 + tabs.length) % tabs.length]);
+    });
+  });
+  document.querySelectorAll("[data-goto]").forEach(a => a.addEventListener("click", e => {
+    e.preventDefault(); selectTab(document.getElementById("tab-" + a.dataset.goto));
+  }));
+
+  document.getElementById("btnReset").addEventListener("click", () => {
+    if (!confirm("Reset all throughput inputs to 0?")) return;
+    inputs = EIC.emptyInputs(); save(); buildTables(); render();
+  });
+  document.getElementById("btnPrint").addEventListener("click", () => window.print());
+  document.getElementById("btnExport").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ tool: "EIC Sizing Calculator v3+1", exportedAt: new Date().toISOString(), inputs, results: EIC.compute(inputs) }, null, 2)], { type: "application/json" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "eic-sizing.json" });
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  const file = document.getElementById("fileImport");
+  document.getElementById("btnImport").addEventListener("click", () => file.click());
+  file.addEventListener("change", async () => {
+    try {
+      const data = JSON.parse(await file.files[0].text());
+      inputs = normalize(data.inputs || data); save(); buildTables(); render();
+    } catch { alert("Could not read the selected file. Please choose a JSON file exported from this calculator."); }
+    file.value = "";
+  });
+
+  buildTables();
+  render();
+})();
+</script>
+</body>
+</html>
